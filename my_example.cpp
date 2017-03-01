@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
 
     // Create the Irrlicht visualization (open the Irrlicht device,
     // bind a simple user interface, etc. etc.)
-    ChIrrApp application(&mphysicalSystem, L"A simple project template", core::dimension2d<u32>(800, 600),
+    ChIrrApp application(&mphysicalSystem, L"A simulator for stone pavements", core::dimension2d<u32>(800, 600),
                          false);  // screen dimensions
 
     // Easy shortcuts to add camera, lights, logo and sky in Irrlicht scene:
