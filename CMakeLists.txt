@@ -16,7 +16,7 @@ cmake_minimum_required(VERSION 2.8)
 # Modify the project name if you want: 
 #--------------------------------------------------------------
 
-project(my_project)
+project(pave_simulator)
 
 #--------------------------------------------------------------
 # === 2 ===
@@ -96,7 +96,7 @@ endif()
 # files in your project. 
 #--------------------------------------------------------------
 
-add_executable(myexe my_example.cpp)
+add_executable(pave my_example.cpp)
 
 #--------------------------------------------------------------
 # Set properties for your executable target
@@ -107,7 +107,7 @@ add_executable(myexe my_example.cpp)
 # install tree (if using an installed version of Chrono).
 #--------------------------------------------------------------
 
-set_target_properties(myexe PROPERTIES 
+set_target_properties(pave PROPERTIES 
 	    COMPILE_FLAGS "${CHRONO_CXX_FLAGS} ${EXTRA_COMPILE_FLAGS}"
 	    COMPILE_DEFINITIONS "CHRONO_DATA_DIR=\"${CHRONO_DATA_DIR}\""
 	    LINK_FLAGS "${CHRONO_LINKER_FLAGS}")
@@ -116,7 +116,7 @@ set_target_properties(myexe PROPERTIES
 # Link to Chrono libraries and dependency libraries
 #--------------------------------------------------------------
 
-target_link_libraries(myexe ${CHRONO_LIBRARIES})
+target_link_libraries(pave ${CHRONO_LIBRARIES})
 
 #--------------------------------------------------------------
 # === 4 (OPTIONAL) ===
