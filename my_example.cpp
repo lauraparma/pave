@@ -44,8 +44,8 @@ int main(int argc, char* argv[]) {
     //application.AddTypicalLogo();
     application.AddTypicalSky();
     application.AddTypicalLights();
-    application.AddTypicalCamera(core::vector3df(2, 2, -5),
-                                 core::vector3df(0, 1, 0));  // to change the position of camera
+    application.AddTypicalCamera(core::vector3df(0, 3, -4),
+                                 core::vector3df(0, 0, 0));  // to change the position of camera
     // application.AddLightWithShadow(vector3df(1,25,-5), vector3df(0,0,0), 35, 0.2,35, 55, 512, video::SColorf(1,1,1));
 
     //======================================================================
@@ -70,10 +70,12 @@ int main(int argc, char* argv[]) {
 
 
     // Some parameters:
+	// (da non cambiare qui perche' l'apparecchiatura a spina di pesce si incastra soltanto se
+	// giunto_gap_x = giunto_gap_z, 2*size_tile_z + giunto_gap_x = size_tile_x)
 
     double size_tile_x = 0.3;
     double size_tile_y = 0.1;
-    double size_tile_z = 0.2;
+    double size_tile_z = 0.145;
     double tile_density = 1500; 
     double tile_gap_y = 0.05; // respect to soil
     double giunto_gap_x = 0.01;
@@ -93,7 +95,7 @@ int main(int argc, char* argv[]) {
     for (int iz =  0; iz < 8; ++iz) {
         for (int ix =  0; ix < 10; ++ix) {
 
-            // 2-Create a piastrella
+            // 2-Create a tile
 
             piastrelle[ix][iz] = std::make_shared<ChBodyEasyBox>(size_tile_x, size_tile_y, size_tile_z, 
                                                                 tile_density,      // density
@@ -114,14 +116,13 @@ int main(int argc, char* argv[]) {
         }
     }
 
-
     for (int iz =  0; iz < 8; ++iz) {
         for (int ix =  0; ix < 10; ++ix) {
 
             double offset_x = ix * (size_tile_x + giunto_gap_x);
             double offset_z = iz * (size_tile_z + giunto_gap_z);
 
-            // Create the vertical springs: soil-piastrella
+            // 3-Create the vertical springs: soil-tile
 
             auto molla1 = std::make_shared<ChLinkSpring>();
             molla1->Initialize(piastrelle[ix][iz], floorBody, false, ChVector<>(-size_tile_x*0.5 + offset_x, tile_gap_y, -size_tile_z*0.5 + offset_z), ChVector<>(-size_tile_x*0.5 + offset_x, 0, -size_tile_z*0.5 + offset_z), true);
@@ -155,7 +156,7 @@ int main(int argc, char* argv[]) {
             molla4->AddAsset(molla4_vis);
             mphysicalSystem.Add(molla4);
 
-            // Create the horizontal springs: soil-piastrella
+            // 4-Create the horizontal springs: soil-tile
 
             auto mollaHx = std::make_shared<ChLinkSpring>();
             mollaHx->Initialize(piastrelle[ix][iz], floorBody, false, ChVector<>(offset_x, tile_gap_y, offset_z), ChVector<>(offset_x + 0.04, tile_gap_y, offset_z), true);
@@ -173,8 +174,10 @@ int main(int argc, char* argv[]) {
             mollaHy->AddAsset(mollaHy_vis);
             mphysicalSystem.Add(mollaHy);
 
-            // Create the inter-block springs:
+            // 5- Create the inter-block springs:
+
             if (ix>0) {
+
                 auto piastrella_prec_x = piastrelle[ix-1][iz];
 
                 auto molla1h = std::make_shared<ChLinkSpring>();
@@ -195,38 +198,34 @@ int main(int argc, char* argv[]) {
                 molla2h->AddAsset(molla2h_vis);
                 mphysicalSystem.Add(molla2h);
             }
+
             if (iz>0) {
+
                 auto piastrella_prec_z = piastrelle[ix][iz-1];
 
-                auto molla1h = std::make_shared<ChLinkSpring>();
-                molla1h->Initialize(piastrelle[ix][iz], piastrella_prec_z, false, ChVector<>(offset_x-size_tile_x*0.5, tile_gap_y, offset_z-size_tile_z*0.5), ChVector<>(offset_x-size_tile_x*0.5, tile_gap_y, offset_z-size_tile_z*0.5 -giunto_gap_z), true);
-                molla1h->Set_SpringK(hor_stiffness_giunto);
-                molla1h->Set_SpringR(hor_damping_giunto);
-                auto molla1h_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
-                molla1h->AddAsset(molla1h_vis);
-                molla1h_vis->SetColor(ChColor(0,1,0));
-                mphysicalSystem.Add(molla1h);
+                auto molla1v = std::make_shared<ChLinkSpring>();
+                molla1v->Initialize(piastrelle[ix][iz], piastrella_prec_z, false, ChVector<>(offset_x-size_tile_x*0.5, tile_gap_y, offset_z-size_tile_z*0.5), ChVector<>(offset_x-size_tile_x*0.5, tile_gap_y, offset_z-size_tile_z*0.5 -giunto_gap_z), true);
+                molla1v->Set_SpringK(hor_stiffness_giunto);
+                molla1v->Set_SpringR(hor_damping_giunto);
+                auto molla1v_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+                molla1v->AddAsset(molla1v_vis);
+                molla1v_vis->SetColor(ChColor(0,1,0));
+                mphysicalSystem.Add(molla1v);
 
-                auto molla2h = std::make_shared<ChLinkSpring>();
-                molla2h->Initialize(piastrelle[ix][iz], piastrella_prec_z, false, ChVector<>(offset_x+size_tile_x*0.5, tile_gap_y, offset_z-size_tile_z*0.5), ChVector<>(offset_x+size_tile_x*0.5, tile_gap_y, offset_z-size_tile_z*0.5 -giunto_gap_z), true);
-                molla2h->Set_SpringK(hor_stiffness_giunto);
-                molla2h->Set_SpringR(hor_damping_giunto);
-                auto molla2h_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
-                molla2h_vis->SetColor(ChColor(0,1,0));
-                molla2h->AddAsset(molla2h_vis);
-                mphysicalSystem.Add(molla2h);
+                auto molla2v = std::make_shared<ChLinkSpring>();
+                molla2v->Initialize(piastrelle[ix][iz], piastrella_prec_z, false, ChVector<>(offset_x+size_tile_x*0.5, tile_gap_y, offset_z-size_tile_z*0.5), ChVector<>(offset_x+size_tile_x*0.5, tile_gap_y, offset_z-size_tile_z*0.5 -giunto_gap_z), true);
+                molla2v->Set_SpringK(hor_stiffness_giunto);
+                molla2v->Set_SpringR(hor_damping_giunto);
+                auto molla2v_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+                molla2v_vis->SetColor(ChColor(0,1,0));
+                molla2v->AddAsset(molla2v_vis);
+                mphysicalSystem.Add(molla2v);
 
             }
-
-
-
-
         }
     }
 
-
-
-    // 3- Create a rigid wheel 
+    // 6- Create a rigid wheel 
 
     auto wheelBody = std::make_shared<ChBodyEasyCylinder>(0.4, 0.285,  // R, h
                                                         200,         // density
@@ -239,6 +238,482 @@ int main(int argc, char* argv[]) {
     mphysicalSystem.Add(wheelBody);
 
 
+	// 7- apparecchiatura stretcher bond
+
+	std::shared_ptr<ChBodyEasyBox> piastrelle_shiftate[10][8];
+
+	for (int iz = 0; iz < 8; iz = iz + 1) {
+			for (int ix = 0; ix < 10; ++ix) {
+				if (iz % 2 == 0) {
+
+				piastrelle_shiftate[ix][iz] = std::make_shared<ChBodyEasyBox>(size_tile_x, size_tile_y, size_tile_z,
+					tile_density,      // density
+					true,         // ok, contact geometry
+					true          // enable visualization geometry
+					);
+
+				double offset_x = ix * (size_tile_x + giunto_gap_x);
+				double offset_z = iz * (size_tile_z + giunto_gap_z);
+
+				piastrelle_shiftate[ix][iz]->SetPos(ChVector<>(
+					-1 - offset_x,
+					size_tile_y*0.5 + tile_gap_y,
+					offset_z
+					));
+
+				mphysicalSystem.Add(piastrelle_shiftate[ix][iz]);
+
+				}
+				else {
+
+                piastrelle_shiftate[ix][iz] = std::make_shared<ChBodyEasyBox>(size_tile_x, size_tile_y, size_tile_z,
+					tile_density,      // density
+					true,         // ok, contact geometry
+					true          // enable visualization geometry
+					);
+
+				double offset_x = ix * (size_tile_x + giunto_gap_x);
+				double offset_z = iz * (size_tile_z + giunto_gap_z);
+
+				piastrelle_shiftate[ix][iz]->SetPos(ChVector<>(
+					-1 - offset_x - 0.5*(size_tile_x + giunto_gap_x),
+					size_tile_y*0.5 + tile_gap_y,
+					offset_z
+					));
+
+				mphysicalSystem.Add(piastrelle_shiftate[ix][iz]);
+				}
+			}
+	}
+
+	for (int iz = 0; iz < 8; ++iz) {
+			for (int ix = 0; ix < 10; ++ix) {
+				if (iz % 2 == 0) {
+
+				double offset_x = ix * (size_tile_x + giunto_gap_x);
+				double offset_z = iz * (size_tile_z + giunto_gap_z);
+
+				// 8- Create the vertical springs: soil-piastrella
+
+				auto spring1 = std::make_shared<ChLinkSpring>();
+				spring1->Initialize(piastrelle_shiftate[ix][iz], floorBody, false, ChVector<>(size_tile_x*0.5 - 1 - offset_x, tile_gap_y, -size_tile_z*0.5 + offset_z), ChVector<>(+size_tile_x*0.5 - 1 - offset_x, 0, -size_tile_z*0.5 + offset_z), true);
+				spring1->Set_SpringK(vert_stiffness);
+				spring1->Set_SpringR(vert_damping);
+				auto spring1_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+				spring1->AddAsset(spring1_vis);
+				mphysicalSystem.Add(spring1);
+
+				auto spring2 = std::make_shared<ChLinkSpring>();
+				spring2->Initialize(piastrelle_shiftate[ix][iz], floorBody, false, ChVector<>(size_tile_x*0.5 - 1 - offset_x, tile_gap_y, +size_tile_z*0.5 + offset_z), ChVector<>(size_tile_x*0.5 - 1 - offset_x, 0, +size_tile_z*0.5 + offset_z), true);
+				spring2->Set_SpringK(vert_stiffness);
+				spring2->Set_SpringR(vert_damping);
+				auto spring2_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+				spring2->AddAsset(spring2_vis);
+				mphysicalSystem.Add(spring2);
+
+				auto spring3 = std::make_shared<ChLinkSpring>();
+				spring3->Initialize(piastrelle_shiftate[ix][iz], floorBody, false, ChVector<>(-size_tile_x*0.5 - 1 - offset_x, tile_gap_y, -size_tile_z*0.5 + offset_z), ChVector<>(-size_tile_x*0.5 - 1 - offset_x, 0, -size_tile_z*0.5 + offset_z), true);
+				spring3->Set_SpringK(vert_stiffness);
+				spring3->Set_SpringR(vert_damping);
+				auto spring3_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+				spring3->AddAsset(spring3_vis);
+				mphysicalSystem.Add(spring3);
+
+				auto spring4 = std::make_shared<ChLinkSpring>();
+				spring4->Initialize(piastrelle_shiftate[ix][iz], floorBody, false, ChVector<>(-size_tile_x*0.5 - 1 - offset_x, tile_gap_y, size_tile_z*0.5 + offset_z), ChVector<>(-size_tile_x*0.5 - 1 - offset_x, 0, size_tile_z*0.5 + offset_z), true);
+				spring4->Set_SpringK(vert_stiffness);
+				spring4->Set_SpringR(vert_damping);
+				auto spring4_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+				spring4->AddAsset(spring4_vis);
+				mphysicalSystem.Add(spring4);
+
+				// 9- Create the horizontal springs: soil-piastrella
+				
+		       /* 
+			    quando le inserisco il sistema si muove :(
+
+			    auto springHx = std::make_shared<ChLinkSpring>();
+				springHx->Initialize(piastrelle_shiftate[ix][iz], floorBody, false, ChVector<>( - 1 - offset_x, tile_gap_y, offset_z), ChVector<>( -1 - offset_x + 0.04, tile_gap_y, offset_z), true);
+				springHx->Set_SpringK(hor_stiffness);
+				springHx->Set_SpringR(hor_damping);
+				auto springHx_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+				springHx->AddAsset(springHx_vis);
+				mphysicalSystem.Add(springHx);
+
+				auto springHy = std::make_shared<ChLinkSpring>();
+				springHy->Initialize(piastrelle_shiftate[ix][iz], floorBody, false, ChVector<>(- 1 - offset_x, tile_gap_y, offset_z), ChVector<>(-1 - offset_x, tile_gap_y, 0.04 + offset_z), true);
+				springHy->Set_SpringK(hor_stiffness);
+				springHy->Set_SpringR(hor_damping);
+				auto springHy_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+				springHy->AddAsset(springHy_vis);
+				mphysicalSystem.Add(springHy);
+				*/
+
+				// 10- Create the inter-block springs (dir x):
+
+				if (ix > 0) {
+
+					auto sbpiastrella_prec_x = piastrelle_shiftate[ix - 1][iz];
+
+					auto spring1h = std::make_shared<ChLinkSpring>();
+					spring1h->Initialize(piastrelle_shiftate[ix][iz], sbpiastrella_prec_x, false, ChVector<>(-1 - offset_x - size_tile_x*0.5 - giunto_gap_x, tile_gap_y, offset_z - size_tile_z*0.5), ChVector<>(-1 - offset_x - size_tile_x*0.5, tile_gap_y, offset_z - size_tile_z*0.5), true);
+					spring1h->Set_SpringK(hor_stiffness_giunto);
+					spring1h->Set_SpringR(hor_damping_giunto);
+					auto spring1h_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+					spring1h_vis->SetColor(ChColor(1, 0, 0));
+					spring1h->AddAsset(spring1h_vis);
+					mphysicalSystem.Add(spring1h);
+
+					auto spring2h = std::make_shared<ChLinkSpring>();
+					spring2h->Initialize(piastrelle_shiftate[ix][iz], sbpiastrella_prec_x, false, ChVector<>(-1 - offset_x - size_tile_x*0.5 - giunto_gap_x, tile_gap_y, offset_z + size_tile_z*0.5), ChVector<>(-1 - offset_x - size_tile_x*0.5, tile_gap_y, offset_z + size_tile_z*0.5), true);
+					spring2h->Set_SpringK(hor_stiffness_giunto);
+					spring2h->Set_SpringR(hor_damping_giunto);
+					auto spring2h_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+					spring2h_vis->SetColor(ChColor(1, 0, 0));
+					spring2h->AddAsset(spring2h_vis);
+					mphysicalSystem.Add(spring2h);
+				}
+				}
+		 else {
+			
+				double offset_x = ix * (size_tile_x + giunto_gap_x);
+				double offset_z = iz * (size_tile_z + giunto_gap_z);
+
+				// 11- Create the vertical springs: soil-piastrella
+
+				auto spring1 = std::make_shared<ChLinkSpring>();
+				spring1->Initialize(piastrelle_shiftate[ix][iz], floorBody, false, ChVector<>(-1 - offset_x - 0.5*giunto_gap_x, tile_gap_y, -size_tile_z*0.5 + offset_z), ChVector<>(-1 - offset_x - 0.5*giunto_gap_x, 0, -size_tile_z*0.5 + offset_z), true);
+				spring1->Set_SpringK(vert_stiffness);
+				spring1->Set_SpringR(vert_damping);
+				auto spring1_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring
+				spring1->AddAsset(spring1_vis);
+				mphysicalSystem.Add(spring1);
+
+				auto spring2 = std::make_shared<ChLinkSpring>();
+				spring2->Initialize(piastrelle_shiftate[ix][iz], floorBody, false, ChVector<>(-1 - offset_x - 0.5*giunto_gap_x, tile_gap_y, +size_tile_z*0.5 + offset_z), ChVector<>(-1 - offset_x - 0.5*giunto_gap_x, 0, +size_tile_z*0.5 + offset_z), true);
+				spring2->Set_SpringK(vert_stiffness);
+				spring2->Set_SpringR(vert_damping);
+				auto spring2_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring
+				spring2->AddAsset(spring2_vis);
+				mphysicalSystem.Add(spring2);
+
+				auto spring3 = std::make_shared<ChLinkSpring>();
+				spring3->Initialize(piastrelle_shiftate[ix][iz], floorBody, false, ChVector<>(-1 - offset_x - 0.5*giunto_gap_x - size_tile_x, tile_gap_y, -size_tile_z*0.5 + offset_z), ChVector<>(-1 - offset_x - 0.5*giunto_gap_x - size_tile_x, 0, -size_tile_z*0.5 + offset_z), true);
+				spring3->Set_SpringK(vert_stiffness);
+				spring3->Set_SpringR(vert_damping);
+				auto spring3_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring
+				spring3->AddAsset(spring3_vis);
+				mphysicalSystem.Add(spring3);
+
+				auto spring4 = std::make_shared<ChLinkSpring>();
+				spring4->Initialize(piastrelle_shiftate[ix][iz], floorBody, false, ChVector<>(-1 - offset_x - 0.5*giunto_gap_x - size_tile_x, tile_gap_y, size_tile_z*0.5 + offset_z), ChVector<>(-1 - offset_x - 0.5*giunto_gap_x - size_tile_x, 0, size_tile_z*0.5 + offset_z), true);
+				spring4->Set_SpringK(vert_stiffness);
+				spring4->Set_SpringR(vert_damping);
+				auto spring4_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring
+				spring4->AddAsset(spring4_vis);
+				mphysicalSystem.Add(spring4);
+
+				// 12- Create the horizontal springs: soil-piastrella
+				
+			    /*
+				Quando le inserisco il sistema si muove :(
+
+				auto springHx = std::make_shared<ChLinkSpring>();
+				springHx->Initialize(piastrelle_shiftate[ix][iz], floorBody, false, ChVector<>(-1 - offset_x - 0.5*(giunto_gap_x + size_tile_x), tile_gap_y, offset_z), ChVector<>(-1 - offset_x - 0.5*(giunto_gap_x + size_tile_x) + 0.04, tile_gap_y, offset_z), true);
+				springHx->Set_SpringK(hor_stiffness);
+				springHx->Set_SpringR(hor_damping);
+				auto springHx_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+				springHx->AddAsset(springHx_vis);
+				mphysicalSystem.Add(springHx);
+
+				auto springHy = std::make_shared<ChLinkSpring>();
+				springHy->Initialize(piastrelle_shiftate[ix][iz], floorBody, false, ChVector<>(-1 - offset_x - 0.5*(giunto_gap_x + size_tile_x), tile_gap_y, offset_z), ChVector<>(-1 - offset_x - 0.5*(giunto_gap_x + size_tile_x), tile_gap_y, 0.04 + offset_z), true);
+				springHy->Set_SpringK(hor_stiffness);
+				springHy->Set_SpringR(hor_damping);
+				auto springHy_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+				springHy->AddAsset(springHy_vis);
+				mphysicalSystem.Add(springHy);
+				*/
+
+				// 13- Create the inter-block springs (dir x):
+
+				if (ix>0) {
+
+					auto sbpiastrella_prec_x = piastrelle_shiftate[ix - 1][iz];
+
+					auto spring1h = std::make_shared<ChLinkSpring>();
+					spring1h->Initialize(piastrelle_shiftate[ix][iz], sbpiastrella_prec_x, false, ChVector<>(-1 - offset_x - size_tile_x - giunto_gap_x - giunto_gap_x*0.5, tile_gap_y, offset_z - size_tile_z*0.5), ChVector<>(-1 - offset_x - size_tile_x - giunto_gap_x*0.5, tile_gap_y, offset_z - size_tile_z*0.5), true);
+					spring1h->Set_SpringK(hor_stiffness_giunto);
+					spring1h->Set_SpringR(hor_damping_giunto);
+					auto spring1h_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+					spring1h_vis->SetColor(ChColor(1, 0, 0));
+					spring1h->AddAsset(spring1h_vis);
+					mphysicalSystem.Add(spring1h);
+
+					auto spring2h = std::make_shared<ChLinkSpring>();
+					spring2h->Initialize(piastrelle_shiftate[ix][iz], sbpiastrella_prec_x, false, ChVector<>(-1 - offset_x - size_tile_x - giunto_gap_x - giunto_gap_x*0.5, tile_gap_y, offset_z + size_tile_z*0.5), ChVector<>(-1 - offset_x - size_tile_x - giunto_gap_x*0.5, tile_gap_y, offset_z + size_tile_z*0.5), true);
+					spring2h->Set_SpringK(hor_stiffness_giunto);
+					spring2h->Set_SpringR(hor_damping_giunto);
+					auto spring2h_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+					spring2h_vis->SetColor(ChColor(1, 0, 0));
+					spring2h->AddAsset(spring2h_vis);
+					mphysicalSystem.Add(spring2h);
+				}
+			}
+	    }
+     }
+
+    // 14-Create the inter-block springs (dir z file pari):
+
+	for (int iz = 2; iz < 8; iz = iz + 2) {
+		for (int ix = 0; ix < 10; ++ix) {
+		
+				double offset_x = ix * (size_tile_x + giunto_gap_x);
+				double offset_z = iz * (size_tile_z + giunto_gap_z);
+
+				auto sb_piastrella_pre_z = piastrelle_shiftate[ix][iz - 1];
+
+				auto spring1v = std::make_shared<ChLinkSpring>();
+				spring1v->Initialize(piastrelle_shiftate[ix][iz], sb_piastrella_pre_z, false, ChVector<>(-1 - offset_x - 0.5*size_tile_x, tile_gap_y, offset_z - size_tile_z*0.5), ChVector<>(-1 - offset_x - 0.5*size_tile_x, tile_gap_y, offset_z - size_tile_z*0.5 - giunto_gap_z), true);
+				spring1v->Set_SpringK(hor_stiffness_giunto);
+				spring1v->Set_SpringR(hor_damping_giunto);
+				auto spring1v_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring
+				spring1v->AddAsset(spring1v_vis);
+				spring1v_vis->SetColor(ChColor(0, 1, 0));
+				mphysicalSystem.Add(spring1v);
+
+			if (ix > 0) {
+
+				double offset_x = ix * (size_tile_x + giunto_gap_x);
+				double offset_z = iz * (size_tile_z + giunto_gap_z);
+
+				auto sb_piastrella_pre_x_pre_z = piastrelle_shiftate[ix - 1][iz - 1];
+
+				auto spring2v = std::make_shared<ChLinkSpring>();
+				spring2v->Initialize(piastrelle_shiftate[ix][iz], sb_piastrella_pre_x_pre_z, false, ChVector<>(-1 - offset_x + 0.5*size_tile_x, tile_gap_y, offset_z - size_tile_z*0.5), ChVector<>(-1 - offset_x + 0.5*size_tile_x, tile_gap_y, offset_z - size_tile_z*0.5 - giunto_gap_z), true);
+				spring2v->Set_SpringK(hor_stiffness_giunto);
+				spring2v->Set_SpringR(hor_damping_giunto);
+				auto spring2v_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring
+				spring2v->AddAsset(spring2v_vis);
+				spring2v_vis->SetColor(ChColor(0, 1, 0));
+				mphysicalSystem.Add(spring2v);
+			}
+		}
+	}
+
+	// 15-Create the inter-block springs (dir z file dispari):
+
+	for (int iz = 1; iz < 8; iz = iz + 2) {
+		for (int ix = 0; ix < 10; ++ix) {
+
+			double offset_x = ix * (size_tile_x + giunto_gap_x);
+			double offset_z = iz * (size_tile_z + giunto_gap_z);
+
+			auto sb_piastrella_pre_z = piastrelle_shiftate[ix][iz - 1];
+
+			auto spring1v = std::make_shared<ChLinkSpring>();
+			spring1v->Initialize(piastrelle_shiftate[ix][iz], sb_piastrella_pre_z, false, ChVector<>(-1 - offset_x - 0.5*size_tile_x, tile_gap_y, offset_z - size_tile_z*0.5), ChVector<>(-1 - offset_x - 0.5*size_tile_x, tile_gap_y, offset_z - size_tile_z*0.5 - giunto_gap_z), true);
+			spring1v->Set_SpringK(hor_stiffness_giunto);
+			spring1v->Set_SpringR(hor_damping_giunto);
+			auto spring1v_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring
+			spring1v->AddAsset(spring1v_vis);
+			spring1v_vis->SetColor(ChColor(0, 1, 0));
+			mphysicalSystem.Add(spring1v);
+
+			if (ix > 0) {
+
+			double offset_x = ix * (size_tile_x + giunto_gap_x);
+			double offset_z = iz * (size_tile_z + giunto_gap_z);
+
+			auto sb_piastrella_pre_z = piastrelle_shiftate[ix][iz - 1];
+
+			auto spring2v = std::make_shared<ChLinkSpring>();
+			spring2v->Initialize(piastrelle_shiftate[ix-1][iz], sb_piastrella_pre_z, false, ChVector<>(-1 - offset_x + 0.5*size_tile_x, tile_gap_y, offset_z - size_tile_z*0.5), ChVector<>(-1 - offset_x + 0.5*size_tile_x, tile_gap_y, offset_z - size_tile_z*0.5 - giunto_gap_z), true);
+			spring2v->Set_SpringK(hor_stiffness_giunto);
+			spring2v->Set_SpringR(hor_damping_giunto);
+			auto spring2v_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring
+			spring2v->AddAsset(spring2v_vis);
+			spring2v_vis->SetColor(ChColor(0, 1, 0));
+			mphysicalSystem.Add(spring2v);
+			
+			}	
+		}
+	}
+	
+	/*
+	//Se inserisco la ruota, per quanto leggera, mi fa esplodere il sistema (immagino per mancanza di contrasto laterale delle piastrelle )
+	// 16- Create a rigid wheel 
+
+	auto sb_wheelBody = std::make_shared<ChBodyEasyCylinder>(0.4, 0.285,  // R, h
+															200,         // density
+															true,        //  contact geometry
+															true          // enable visualization geometry
+															);
+	sb_wheelBody->SetPos(ChVector<>(-2.5, 1, 0.5));
+	sb_wheelBody->SetRot(Q_from_AngX(CH_C_PI_2)); // 90 deg
+
+	mphysicalSystem.Add(sb_wheelBody);
+	*/
+	
+	
+	// 17-apparecchiatura a spina di pesce
+	// imporre condizioni: giunto_gap_x=giunto_gap_z, 2*size_tile_z+giunto_gap_x=size_tile_x
+	// l'indice iz deve essere 4, non deve essere cambiato, individua il blocco tipo che si ripete ix volte in dir x e izz volte in dir z
+
+	std::shared_ptr<ChBodyEasyBox> piastrelle_herringbone_h[6][5][4];
+
+	//  18-piastrelle orizzontali apparecchiatura a spina di pesce
+
+	for (int iz = 0; iz < 4; ++iz) {
+	  for (int izz = 0; izz < 5; ++izz) {
+			for (int ix = 0; ix < 6; ++ix) {
+
+				piastrelle_herringbone_h[ix][izz][iz] = std::make_shared<ChBodyEasyBox>(size_tile_x, size_tile_y, size_tile_z,
+																							tile_density,      // density
+																							true,         // ok, contact geometry
+																							true          // enable visualization geometry
+																							);
+				double offset_x = ix * (size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z) + iz * (size_tile_z + giunto_gap_x);
+				double offset_z = iz * (size_tile_z + giunto_gap_z);
+
+				piastrelle_herringbone_h[ix][izz][iz]->SetPos(ChVector<>(
+															0.5*size_tile_x  +  offset_x,
+															size_tile_y*0.5  + tile_gap_y,
+															-1 - 0.5*size_tile_z - offset_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)
+															));
+
+				mphysicalSystem.Add(piastrelle_herringbone_h[ix][izz][iz]);
+			}
+		}
+	}
+	
+	//  19-piastrelle verticali apparecchiatura a spina di pesce
+
+	std::shared_ptr<ChBodyEasyBox> piastrelle_herringbone_v[6][5][4];
+
+	for (int iz = 0; iz < 4; ++iz) {
+		for (int izz = 0; izz < 5; ++izz) {
+		     for (int ix = 0; ix < 6; ++ix) {
+	       
+				piastrelle_herringbone_v[ix][izz][iz] = std::make_shared<ChBodyEasyBox>(size_tile_z, size_tile_y, size_tile_x,
+																						tile_density,      // density
+																						true,         // ok, contact geometry
+																						true          // enable visualization geometry
+																						);
+				double offset_x = ix * (size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z) + iz * (size_tile_z + giunto_gap_x);
+				double offset_z = iz * (size_tile_z + giunto_gap_z);
+
+				piastrelle_herringbone_v[ix][izz][iz]->SetPos(ChVector<>(
+												0.5*size_tile_z + offset_x,
+												size_tile_y*0.5 + tile_gap_y,
+												-1 - (size_tile_z + giunto_gap_z + 0.5*size_tile_x) - offset_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)
+												));
+
+				mphysicalSystem.Add(piastrelle_herringbone_v[ix][izz][iz]);
+			}
+		}
+	}
+
+	// 20-Create the vertical springs: soil-piastrella (piastrelle orizzontali)
+
+	for (int iz = 0; iz < 4; ++iz) {
+	   for (int izz = 0; izz < 5; ++izz) {
+			for (int ix = 0; ix < 6; ++ix) {
+	
+			double offset_x = ix * (size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z) + iz * (size_tile_z + giunto_gap_x);
+			double offset_z = iz * (size_tile_z + giunto_gap_z);
+
+			auto hb_spring1 = std::make_shared<ChLinkSpring>();
+			hb_spring1->Initialize(piastrelle_herringbone_h[ix][izz][iz], floorBody, false, ChVector<>(offset_x, tile_gap_y, -1 - offset_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)), ChVector<>(offset_x, 0, -1 - offset_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)), true);
+			hb_spring1->Set_SpringK(vert_stiffness);
+			hb_spring1->Set_SpringR(vert_damping);
+			auto hb_spring1_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+			hb_spring1->AddAsset(hb_spring1_vis);
+			mphysicalSystem.Add(hb_spring1);
+			
+			auto hb_spring2 = std::make_shared<ChLinkSpring>();
+			hb_spring2->Initialize(piastrelle_herringbone_h[ix][izz][iz], floorBody, false, ChVector<>(offset_x + size_tile_x, tile_gap_y, -1 - offset_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)), ChVector<>(offset_x + size_tile_x, 0, -1 - offset_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)), true);
+			hb_spring2->Set_SpringK(vert_stiffness);
+			hb_spring2->Set_SpringR(vert_damping);
+			auto hb_spring2_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+			hb_spring2->AddAsset(hb_spring2_vis);
+			mphysicalSystem.Add(hb_spring2);
+
+			auto hb_spring3 = std::make_shared<ChLinkSpring>();
+			hb_spring3->Initialize(piastrelle_herringbone_h[ix][izz][iz], floorBody, false, ChVector<>(offset_x, tile_gap_y, -1 - offset_z - size_tile_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)), ChVector<>(offset_x, 0, -1 - offset_z -size_tile_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)), true);
+			hb_spring3->Set_SpringK(vert_stiffness);
+			hb_spring3->Set_SpringR(vert_damping);
+			auto hb_spring3_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+			hb_spring3->AddAsset(hb_spring3_vis);
+			mphysicalSystem.Add(hb_spring3);
+			
+			auto hb_spring4 = std::make_shared<ChLinkSpring>();
+			hb_spring4->Initialize(piastrelle_herringbone_h[ix][izz][iz], floorBody, false, ChVector<>(offset_x + size_tile_x, tile_gap_y, -1 - offset_z - size_tile_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)), ChVector<>(offset_x + size_tile_x, 0, -1 - offset_z - size_tile_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)), true);
+			hb_spring4->Set_SpringK(vert_stiffness);
+			hb_spring4->Set_SpringR(vert_damping);
+			auto hb_spring4_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+			hb_spring4->AddAsset(hb_spring4_vis);
+			mphysicalSystem.Add(hb_spring4);	
+			}
+		}
+	}
+
+	// 21-Create the vertical springs: soil-piastrella (piastrelle verticali)
+
+	for (int iz = 0; iz < 4; ++iz) {
+		for (int izz = 0; izz < 5; ++izz) {
+			for (int ix = 0; ix < 6; ++ix) {
+
+				double offset_x = ix * (size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z) + iz * (size_tile_z + giunto_gap_x);
+				double offset_z = iz * (size_tile_z + giunto_gap_z);
+
+				auto hb_spring1 = std::make_shared<ChLinkSpring>();
+				hb_spring1->Initialize(piastrelle_herringbone_v[ix][izz][iz], floorBody, false, ChVector<>(offset_x, tile_gap_y, -1 - (size_tile_z + giunto_gap_z) - offset_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)), ChVector<>(offset_x, 0, -1 - (size_tile_z + giunto_gap_z) - offset_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)), true);
+				hb_spring1->Set_SpringK(vert_stiffness);
+				hb_spring1->Set_SpringR(vert_damping);
+				auto hb_spring1_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+				hb_spring1->AddAsset(hb_spring1_vis);
+				mphysicalSystem.Add(hb_spring1);
+
+				auto hb_spring2 = std::make_shared<ChLinkSpring>();
+				hb_spring2->Initialize(piastrelle_herringbone_v[ix][izz][iz], floorBody, false, ChVector<>(offset_x + size_tile_z, tile_gap_y, -1 - (size_tile_z + giunto_gap_z) - offset_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)), ChVector<>(offset_x + size_tile_z, 0, -1 - (size_tile_z + giunto_gap_z) - offset_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)), true);
+				hb_spring2->Set_SpringK(vert_stiffness);
+				hb_spring2->Set_SpringR(vert_damping);
+				auto hb_spring2_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+				hb_spring2->AddAsset(hb_spring2_vis);
+				mphysicalSystem.Add(hb_spring2);
+
+				auto hb_spring3 = std::make_shared<ChLinkSpring>();
+				hb_spring3->Initialize(piastrelle_herringbone_v[ix][izz][iz], floorBody, false, ChVector<>(offset_x, tile_gap_y, -1 - (size_tile_z + giunto_gap_z + size_tile_x) - offset_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)), ChVector<>(offset_x, 0, -1 - (size_tile_z + giunto_gap_z + size_tile_x) - offset_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)), true);
+				hb_spring3->Set_SpringK(vert_stiffness);
+				hb_spring3->Set_SpringR(vert_damping);
+				auto hb_spring3_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+				hb_spring3->AddAsset(hb_spring3_vis);
+				mphysicalSystem.Add(hb_spring3);
+
+				auto hb_spring4 = std::make_shared<ChLinkSpring>();
+				hb_spring4->Initialize(piastrelle_herringbone_v[ix][izz][iz], floorBody, false, ChVector<>(offset_x + size_tile_z, tile_gap_y, -1 - (size_tile_z + giunto_gap_z +size_tile_x) - offset_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)), ChVector<>(offset_x + size_tile_z, 0, -1 - (size_tile_z + giunto_gap_z +size_tile_x) - offset_z - izz*(size_tile_x + 3 * giunto_gap_x + 2 * size_tile_z)), true);
+				hb_spring4->Set_SpringK(vert_stiffness);
+				hb_spring4->Set_SpringR(vert_damping);
+				auto hb_spring4_vis = std::make_shared<ChPointPointSegment>();  // or..  ChPointPointSpring 
+				hb_spring4->AddAsset(hb_spring4_vis);
+				mphysicalSystem.Add(hb_spring4);
+			}
+		}
+	}
+
+	// 22- Create a rigid wheel 
+
+	auto hb_wheelBody = std::make_shared<ChBodyEasyCylinder>(0.4, 0.2,  // R, h
+		200,         // density
+		true,        //  contact geometry
+		true          // enable visualization geometry
+		);
+	hb_wheelBody->SetPos(ChVector<>(2,size_tile_y + tile_gap_y + 0.1,-2));
+
+	mphysicalSystem.Add(hb_wheelBody);
+
+	
     // Optionally, attach a RGB color asset to the floor, for better visualization
     auto color = std::make_shared<ChColorAsset>();
     color->SetColor(ChColor(0.2f, 0.25f, 0.25f));
