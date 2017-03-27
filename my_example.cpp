@@ -15,6 +15,7 @@
 #include "chrono/assets/ChPointPointDrawing.h"
 #include "chrono/physics/ChLoadsBody.h"
 #include "chrono/physics/ChLoadContainer.h"
+#include "chrono/core/ChFileutils.h"
 
 // Use the namespace of Chrono
 
@@ -29,6 +30,54 @@ using namespace irr::scene;
 using namespace irr::video;
 using namespace irr::io;
 using namespace irr::gui;
+
+
+
+// This is the contact reporter class, just for writing contacts on 
+// a file on disk
+class _contact_reporter_class : public  chrono::ChReportContactCallback 
+{
+    public:
+    ChStreamOutAsciiFile* mfile; // the file to save data into
+
+    virtual bool ReportContactCallback(
+                                const ChVector<>& pA,             ///< get contact pA
+                                const ChVector<>& pB,             ///< get contact pB
+                                const ChMatrix33<>& plane_coord,  ///< get contact plane coordsystem (A column 'X' is contact normal)
+                                const double& distance,           ///< get contact distance
+                                const ChVector<>& react_forces,   ///< get react.forces (if already computed). In coordsystem 'plane_coord'
+                                const ChVector<>& react_torques,  ///< get react.torques, if rolling friction (if already computed).
+                                ChContactable* contactobjA,  ///< get model A (note: some containers may not support it and could be zero!)
+                                ChContactable* contactobjB   ///< get model B (note: some containers may not support it and could be zero!)
+        )
+    {
+        // For each contact, this function is executed. 
+        // In this example, saves on ascii file:
+        //   bodyA ID, bodyB ID, position x,y,z, force normal,tangentU,tangentV, rotation matrix (9 values: normal xyz, tangent xyz, tangent xyz)
+        (*mfile)    << contactobjA->GetPhysicsItem()->GetIdentifier() << ", "
+                    << contactobjB->GetPhysicsItem()->GetIdentifier() << ", "    
+                    << pA.x() << ", " 
+                    << pA.y() << ", " 
+                    << pA.z() << ", " 
+                    << react_forces.x() << ", "
+                    << react_forces.y() << ", "
+                    << react_forces.z() << ", "
+                    << plane_coord.Get_A_Xaxis().x() << ", "
+                    << plane_coord.Get_A_Xaxis().y() << ", "
+                    << plane_coord.Get_A_Xaxis().z() << ", "
+                    << plane_coord.Get_A_Yaxis().x() << ", "
+                    << plane_coord.Get_A_Yaxis().y() << ", "
+                    << plane_coord.Get_A_Yaxis().z() << ", "
+                    << plane_coord.Get_A_Zaxis().x() << ", "
+                    << plane_coord.Get_A_Zaxis().y() << ", "
+                    << plane_coord.Get_A_Zaxis().z() << "\n";
+        return true;  // to continue scanning contacts
+    }
+};
+
+
+
+
 
 int main(int argc, char* argv[]) {
     // Set path to Chrono data directory
@@ -91,7 +140,7 @@ int main(int argc, char* argv[]) {
     //     vertical:
     double vert_stiffness = 12500;  // N/m
     double vert_damping   = 100;    // N/ m/s
-    double vert_yeld      = 10000;  // N/m
+    double vert_yeld      = 100;  // N/m
     //     horizontal  (shear) (in two dim?)
     double hor_stiffness = 12500;  // N/m
     double hor_damping   = 100;    // N/ m/s
@@ -107,8 +156,10 @@ int main(int argc, char* argv[]) {
     double shear_damping_giunto   = 100;    // N/ m/s
     double shear_yeld_giunto      = 100000;  // N/ m/s
 
+    int save_each = 10; // save results each n. of timesteps
 
 
+    int createdbodies = 0;
     std::shared_ptr<ChBodyEasyBox> piastrelle[10][8];
 
     for (int iz =  0; iz < 8; ++iz) {
@@ -129,6 +180,8 @@ int main(int argc, char* argv[]) {
                                                     size_tile_y*0.5 + tile_gap_y, 
                                                     offset_z
                                                 )); 
+            createdbodies++;
+            piastrelle[ix][iz]->SetIdentifier(createdbodies);
 
             mphysicalSystem.Add(piastrelle[ix][iz]);
 
@@ -823,6 +876,9 @@ int main(int argc, char* argv[]) {
     application.SetTimestep(0.002);
     application.SetTryRealtime(true);
 
+    // put all results into a subdirectory
+    ChFileutils::MakeDirectory("results");
+
     //
     // THE SOFT-REAL-TIME CYCLE
     //
@@ -834,6 +890,63 @@ int main(int argc, char* argv[]) {
 
         // This performs the integration timestep!
         application.DoStep();
+
+
+        // Do some output to disk, for later postprocessing
+        if (save_each && (mphysicalSystem.GetStepcount() % save_each  == 0))
+        {
+            // a) Use the contact callback object to save contacts:
+            char contactfilename[200];
+            sprintf(contactfilename, "%s%05d%s", "results/contacts", mphysicalSystem.GetStepcount(), ".txt");  // ex: contacts00020.tx
+            _contact_reporter_class my_contact_rep;
+            ChStreamOutAsciiFile result_contacts(contactfilename);
+            my_contact_rep.mfile = &result_contacts;
+            mphysicalSystem.GetContactContainer()->ReportAllContacts(&my_contact_rep);
+
+            // b) Save rigid body positions and rotations
+            char bodyfilename[200];
+            sprintf(bodyfilename, "%s%05d%s", "results/bodies", mphysicalSystem.GetStepcount(), ".txt");  // ex: bodies00020.tx
+            ChStreamOutAsciiFile result_bodies(bodyfilename);
+            ChSystem::IteratorBodies mbodies = mphysicalSystem.IterBeginBodies();
+            while (mbodies != mphysicalSystem.IterEndBodies()) {
+                result_bodies   << (*mbodies)->GetIdentifier()  << ", " 
+                                << (*mbodies)->GetPos().x()  << ", "
+                                << (*mbodies)->GetPos().y()  << ", "
+                                << (*mbodies)->GetPos().z()  << ", "
+                                << (*mbodies)->GetRot().e0()  << ", "
+                                << (*mbodies)->GetRot().e1()  << ", "
+                                << (*mbodies)->GetRot().e2()  << ", "
+                                << (*mbodies)->GetRot().e3()  << "\n";
+                ++mbodies;
+            }
+
+            
+            // b) Save spring reactions
+            char bushingfilename[200];
+            sprintf(bushingfilename, "%s%05d%s", "results/bushings", mphysicalSystem.GetStepcount(), ".txt");  // ex: springs00020.tx
+            ChStreamOutAsciiFile result_bushings(bushingfilename);
+            auto mitem = mphysicalSystem.IterBeginOtherPhysicsItems();
+            while (mitem != mphysicalSystem.IterEndOtherPhysicsItems()) {
+                if (auto mloadcontainer = std::dynamic_pointer_cast<ChLoadContainer>((*mitem))) {
+                     for (auto mload : mloadcontainer->GetLoadList())  {
+                         if (auto mbushing = std::dynamic_pointer_cast<ChLoadBodyBodyBushingPlastic>((mload))) {
+                            result_bushings << mbushing->GetBodyA()->GetIdentifier()  << ", "
+                                            << mbushing->GetBodyB()->GetIdentifier()  << ", "
+                                            << mbushing->GetAbsoluteFrameA().GetPos().x()  << ", " 
+                                            << mbushing->GetAbsoluteFrameA().GetPos().y()  << ", " 
+                                            << mbushing->GetAbsoluteFrameA().GetPos().z()  << ", " 
+                                            << mbushing->GetBushingForce().x() << ", " 
+                                            << mbushing->GetBushingForce().y() << ", " 
+                                            << mbushing->GetBushingForce().z() << "\n"; 
+                         }
+                     }
+                }
+                ++mitem;
+            }
+            
+        }
+
+
 
         application.EndScene();
     }
