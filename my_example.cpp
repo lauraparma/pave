@@ -16,6 +16,8 @@
 #include "chrono/physics/ChLoadsBody.h"
 #include "chrono/physics/ChLoadContainer.h"
 #include "chrono/core/ChFileutils.h"
+#include "chrono/core/ChFrame.h"
+#include "core/ChMath.h"
 
 // Use the namespace of Chrono
 
@@ -95,7 +97,7 @@ int main(int argc, char* argv[]) {
     //application.AddTypicalLogo();
     application.AddTypicalSky();
     application.AddTypicalLights();
-    application.AddTypicalCamera(core::vector3df(0, 3, -4),
+    application.AddTypicalCamera(core::vector3df(-4, 3, -4),
                                  core::vector3df(0, 0, 0));  // to change the position of camera
     // application.AddLightWithShadow(vector3df(1,25,-5), vector3df(0,0,0), 35, 0.2,35, 55, 512, video::SColorf(1,1,1));
 
@@ -119,9 +121,184 @@ int main(int argc, char* argv[]) {
 
     mphysicalSystem.Add(floorBody);
 
+	// archi contrastanti (inizio)
+
+	double raggio = 0.8;
+    double lato_blocco = 0.1;  // lato cubetto
+	double tile_gap_y = 0.05; // respect to soil
+	double l_giunto_azimut = 0.01; // larghezza giunto lungo azimut (valore minimo)
+	double l_giunto_radiale = 0.01; // larghezza giunto long.
+
+	//  blocchi sottosquadra (inizio)
+
+	std:: vector<ChVector<> > mpoints; // punti dell'inviluppo convesso blocco sottosquadra (rapporto lato sup/lat inf = 0.4)
+
+	for (int i = 0; i < 4; ++i) {
+		double alpha = CH_C_PI_4 + i*CH_C_PI_2;  // polar coord
+		double x = CH_C_SQRT_2*0.5*lato_blocco*cos(alpha);
+		double z = CH_C_SQRT_2*0.5*lato_blocco*sin(alpha);
+		double y = lato_blocco;
+		mpoints.push_back(ChVector<>(x, y, z));
+	}
+
+	for (int i = 0; i < 4; ++i) {
+		double alpha = CH_C_PI_4 + i*CH_C_PI_2;  // polar coord
+		double x = CH_C_SQRT_2*0.5*lato_blocco*0.4*cos(alpha);
+		double z = CH_C_SQRT_2*0.5*lato_blocco*0.4*sin(alpha);
+		double y = 0;
+		mpoints.push_back(ChVector<>(x, y, z));
+	}
+
+	// arco sinistra blocchi sottosquadra
+
+	std::shared_ptr<ChBodyEasyConvexHull> blocco_sottosquadra_s[7];
+
+	for (int ix = 1; ix < 8; ++ix) {
+
+		blocco_sottosquadra_s[ix] = std::make_shared<ChBodyEasyConvexHull>(mpoints, 1500, true, true);
+
+		double offset_azimut = (ix - 1)*(lato_blocco / raggio + l_giunto_azimut / raggio);
+
+		blocco_sottosquadra_s[ix]->SetPos(ChVector<>(-1 - (raggio + 0.5*lato_blocco)*sin(offset_azimut), tile_gap_y + lato_blocco*(double(2) / double(3)), (raggio + 0.5*lato_blocco)*cos(offset_azimut)));
+		blocco_sottosquadra_s[ix]->SetRot(Q_from_AngY(-offset_azimut));
+		blocco_sottosquadra_s[ix]->SetBodyFixed(true);
+
+		mphysicalSystem.Add(blocco_sottosquadra_s[ix]);
+	}
+
+	
+	// arco destra blocchi sottosquadra (funziona con un solo blocchetto!!!? perché?
+
+
+	std::shared_ptr<ChBodyEasyConvexHull> blocco_sottosquadra_d[1];
+
+	for (int ix = 2; ix < 3; ++ix) {
+
+		blocco_sottosquadra_d[ix] = std::make_shared<ChBodyEasyConvexHull>(mpoints, 1500, true, true);
+
+		double offset_azimut = (ix - 1)*(lato_blocco/raggio + l_giunto_azimut/raggio);
+
+		blocco_sottosquadra_d[ix]->SetPos(ChVector<>(-1 + (raggio + 0.5*lato_blocco)*sin(offset_azimut), tile_gap_y + lato_blocco*(double(2) / double(3)), (raggio + 0.5*lato_blocco)*cos(offset_azimut)));
+		blocco_sottosquadra_d[ix]->SetRot(Q_from_AngY(offset_azimut));
+		blocco_sottosquadra_d[ix]->SetBodyFixed(true);
+
+		mphysicalSystem.Add(blocco_sottosquadra_d[ix]);
+	}
+	
+    // archi contrastanti con blocchi sottosquadra (fine)
+
+	// archi contrastanti con blocchi normali (inizio)
+	// arco sinistra
+
+	std::shared_ptr<ChBodyEasyBox> blocchetto_s[6];
+
+	for (int ix = 1; ix < 7; ++ix) {
+
+		blocchetto_s[ix] = std::make_shared<ChBodyEasyBox>(lato_blocco, lato_blocco, lato_blocco,
+															1500,      // density
+															true,         // ok, contact geometry
+															true          // enable visualization geometry
+															);
+
+		double offset_azimut = (ix - 1)*(lato_blocco/raggio + l_giunto_azimut/raggio);
+
+		blocchetto_s[ix]->SetPos(ChVector<>(-1 - (raggio + 0.5*lato_blocco)*sin(offset_azimut), tile_gap_y + 0.5*lato_blocco, -1 + (raggio + 0.5*lato_blocco)*cos(offset_azimut)));
+		blocchetto_s[ix]->SetRot(Q_from_AngY(-offset_azimut));
+		blocchetto_s[ix]->SetBodyFixed(true);
+
+		mphysicalSystem.Add(blocchetto_s[ix]);
+	}
+
+	// blocco condiviso (non funziona!)
+	/*
+	double lato_blocco_cond = lato_blocco*CH_C_SQRT_2*0.5;
+	auto blocchetto_condiv = std::make_shared<ChBodyEasyBox>(lato_blocco_cond, lato_blocco_cond, lato_blocco_cond,
+												1500,      // density
+												false,         // ok, contact geometry
+												true          // enable visualization geometry
+												);
+	blocchetto_condiv->SetPos(ChVector<>(-1 - (raggio + lato_blocco)*CH_C_SQRT_2*0.5, tile_gap_y + 0.5*lato_blocco, -1 + (raggio + lato_blocco)*0.5*CH_C_SQRT_2 - 0.5*lato_blocco));
+	blocchetto_condiv->SetRot(Q_from_AngY(-CH_C_PI_4));
+	blocchetto_condiv->SetBodyFixed(true);
+	mphysicalSystem.Add(blocchetto_condiv);
+	*/
+	
+	
+
+
+
+	//arco sinistra shiftato radialmente
+
+	std::shared_ptr<ChBodyEasyBox> blocchetto_s_r[7];
+
+	for (int ix = 1; ix < 8; ++ix) {
+
+		blocchetto_s_r[ix] = std::make_shared<ChBodyEasyBox>(lato_blocco, lato_blocco, lato_blocco,
+															1500,      // density
+															true,         // ok, contact geometry
+															true          // enable visualization geometry
+															);
+
+		double offset_azimut = (ix - 1)*(lato_blocco / (raggio + lato_blocco + l_giunto_radiale) + l_giunto_azimut / (raggio + lato_blocco + l_giunto_radiale)) + 0.5*lato_blocco / (raggio + lato_blocco + l_giunto_radiale) + 0.5*l_giunto_azimut / (raggio + lato_blocco + l_giunto_radiale);
+
+		blocchetto_s_r[ix]->SetPos(ChVector<>(-1 - (raggio + 0.5*lato_blocco + lato_blocco + l_giunto_radiale)*sin(offset_azimut), tile_gap_y + 0.5*lato_blocco, -1 + (raggio + 0.5*lato_blocco + lato_blocco + l_giunto_radiale)*cos(offset_azimut)));
+		blocchetto_s_r[ix]->SetRot(Q_from_AngY(-offset_azimut));
+		blocchetto_s_r[ix]->SetBodyFixed(true);
+
+		mphysicalSystem.Add(blocchetto_s_r[ix]);
+	}
+
+	// arco destra
+
+	 std::shared_ptr<ChBodyEasyBox> blocchetto_d[5];
+
+		for (int ix = 2; ix < 7; ++ix) {
+
+			blocchetto_d[ix] = std::make_shared<ChBodyEasyBox>(lato_blocco, lato_blocco, lato_blocco,
+												1500,      // density
+												true,         // ok, contact geometry
+												true          // enable visualization geometry
+												);
+
+			double offset_azimut = (ix - 1)*(lato_blocco / raggio + l_giunto_azimut/raggio);
+
+			blocchetto_d[ix]->SetPos(ChVector<>(-1 + (raggio + 0.5*lato_blocco)*sin(offset_azimut), tile_gap_y + 0.5*lato_blocco, -1 + (raggio + 0.5*lato_blocco)*cos(offset_azimut)));
+			blocchetto_d[ix]->SetRot(Q_from_AngY(offset_azimut));
+			blocchetto_d[ix]->SetBodyFixed(true);
+
+			mphysicalSystem.Add(blocchetto_d[ix]);
+		}
+	
+		//arco destra shiftato radialmente
+
+	std::shared_ptr<ChBodyEasyBox> blocchetto_d_r[7];
+
+	for (int ix = 1; ix < 8; ++ix) {
+
+		blocchetto_d_r[ix] = std::make_shared<ChBodyEasyBox>(lato_blocco, lato_blocco, lato_blocco,
+																1500,      // density
+																true,         // ok, contact geometry
+																true          // enable visualization geometry
+																);
+
+		double alpha_blocco = lato_blocco/ (raggio + lato_blocco + l_giunto_radiale);
+		double alpha_giunto = l_giunto_azimut / (raggio + lato_blocco + l_giunto_radiale);
+		double offset_azimut = (ix - 1)*(alpha_blocco + alpha_giunto) + 0.5*alpha_blocco + 0.5*alpha_giunto;
+
+		blocchetto_d_r[ix]->SetPos(ChVector<>(-1 + (raggio + 0.5*lato_blocco + lato_blocco + l_giunto_radiale)*sin(offset_azimut), tile_gap_y + 0.5*lato_blocco, -1 + (raggio + 0.5*lato_blocco + lato_blocco + l_giunto_radiale)*cos(offset_azimut)));
+		blocchetto_d_r[ix]->SetRot(Q_from_AngY(offset_azimut));
+		blocchetto_d_r[ix]->SetBodyFixed(true);
+
+		mphysicalSystem.Add(blocchetto_d_r[ix]);
+	}
+	
+// archi contrastanti con blocchi normali (fine)
+
+	
     // contains all 'loads' (ie. bushings)
     auto my_loadcontainer = std::make_shared<ChLoadContainer>();
     mphysicalSystem.Add(my_loadcontainer);
+
 
 
     // Some parameters:
@@ -132,32 +309,59 @@ int main(int argc, char* argv[]) {
     double size_tile_y = 0.1;
     double size_tile_z = 0.145;
     double tile_density = 1500; 
-    double tile_gap_y = 0.05; // respect to soil
+   /* double tile_gap_y = 0.05; // respect to soil*/
     double giunto_gap_x = 0.01;
     double giunto_gap_z = 0.01;
 
-    // Bushing soil-block
-    //     vertical:
-    double vert_stiffness = 12500;  // N/m
-    double vert_damping   = 100;    // N/ m/s
-    double vert_yeld      = 100;  // N/m
-    //     horizontal  (shear) (in two dim?)
-    double hor_stiffness = 12500;  // N/m
-    double hor_damping   = 100;    // N/ m/s
-    double hor_yeld      = 100000;  // N/m
+    // Bushing soil-block:
+    // (normal direction)
+	double stiffness_yy = 12500;  // N/m
+	double damping_yy = 100;    // N/ m/s
+    double yeld_yy     = 100;  // N
+    // (tangential directions/shear)
+	double stiffness_yx = 12500;  // N/m
+	double stiffness_yz = 12500;  // N/m
+	double damping_yx = 100;    // N/ m/s
+	double damping_yz = 100;    // N/ m/s
+    double yeld_yx     = 100000;  // N
+	double yeld_yz = 100000;  // N
 
-    // Bushing block-block
-    //     orthogonal
-    double ortho_stiffness_giunto = 10500;  // N/m      
-    double ortho_damping_giunto   = 100;    // N/ m/s
-    double ortho_yeld_giunto      = 100000;    // N/ m/s
-    //     shear (in two dim?)
-    double shear_stiffness_giunto = 3500;  // N/m
-    double shear_damping_giunto   = 100;    // N/ m/s
-    double shear_yeld_giunto      = 100000;  // N/ m/s
+    // Bushing block-block:
+    // (normal direction)   
+	double stiffness_xx_giunto = 10500;  // N/m
+	double stiffness_zz_giunto = 10500;  // N/m  
+	double damping_xx_giunto = 100;    // N/ m/s
+	double damping_zz_giunto = 100;    // N/ m/s
+    double yeld_xx_giunto      = 100000;    // N
+	double yeld_zz_giunto = 100000;    // N
+    // (tangential directions/shear)
+	double stiffness_xy_giunto = 3500;  // N/m
+	double stiffness_xz_giunto = 3500;  // N/m
+	double stiffness_zx_giunto = 3500;  // N/m
+	double stiffness_zy_giunto = 3500;  // N/m
+	double damping_xy_giunto = 100;    // N/ m/s
+	double damping_xz_giunto = 100;    // N/ m/s
+	double damping_zx_giunto = 100;    // N/ m/s
+	double damping_zy_giunto = 100;    // N/ m/s
+	double yeld_xy_giunto = 100000;    // N
+	double yeld_xz_giunto = 100000;    // N
+	double yeld_zx_giunto = 100000;    // N
+	double yeld_zy_giunto = 100000;    // N
 
     int save_each = 10; // save results each n. of timesteps
-
+	/*
+	auto carico = std::make_shared<ChBodyEasyBox>(size_tile_x, size_tile_y, size_tile_z,
+		80*tile_density,      // density
+		true,         // ok, contact geometry
+		true          // enable visualization geometry
+		);
+	carico->SetPos(ChVector<>(
+		1.55,
+		2*size_tile_y + tile_gap_y,
+		0.62
+		));
+	mphysicalSystem.Add(carico);
+	*/
 
     int createdbodies = 0;
     std::shared_ptr<ChBodyEasyBox> piastrelle[10][8];
@@ -254,9 +458,9 @@ int main(int argc, char* argv[]) {
                                     piastrelle[ix][iz], // body A
                                     floorBody, // body B
                                     ChFrame<>(ChVector<>(-size_tile_x*0.5 + offset_x, tile_gap_y, -size_tile_z*0.5 + offset_z)), //initial frame of bushing in abs space
-                                    ChVector<>(hor_stiffness, vert_stiffness, hor_stiffness),    // K stiffness in local frame  [N/m]
-                                    ChVector<>(hor_damping, vert_damping, hor_damping),        // R damping in local frame  [N/m/s]
-                                    ChVector<>(hor_yeld, vert_yeld, hor_yeld)     // plastic yeld [N/m]
+                                    ChVector<>(stiffness_yx, stiffness_yy, stiffness_yz),    // K stiffness in local frame  [N/m]
+                                    ChVector<>(damping_yx, damping_yy, damping_yz),        // R damping in local frame  [N/m/s]
+                                    ChVector<>(yeld_yx, yeld_yy, yeld_yz)     // plastic yeld [N]
                                     );  
             my_loadcontainer->Add(bushing1);
 
@@ -264,9 +468,9 @@ int main(int argc, char* argv[]) {
                                     piastrelle[ix][iz], // body A
                                     floorBody, // body B
                                     ChFrame<>(ChVector<>( size_tile_x*0.5 + offset_x, tile_gap_y, -size_tile_z*0.5 + offset_z)), //initial frame of bushing in abs space
-                                    ChVector<>(hor_stiffness, vert_stiffness, hor_stiffness),    // K stiffness in local frame  [N/m]
-                                    ChVector<>(hor_damping, vert_damping, hor_damping),        // R damping in local frame  [N/m/s]
-                                    ChVector<>(hor_yeld, vert_yeld, hor_yeld)     // plastic yeld [N/m]
+                                    ChVector<>(stiffness_yx, stiffness_yy, stiffness_yz),    // K stiffness in local frame  [N/m]
+                                    ChVector<>(damping_yx, damping_yy, damping_yz),        // R damping in local frame  [N/m/s]
+                                    ChVector<>(yeld_yx, yeld_yy, yeld_yz)     // plastic yeld [N]
                                     );  
             my_loadcontainer->Add(bushing2);
 
@@ -274,9 +478,9 @@ int main(int argc, char* argv[]) {
                                     piastrelle[ix][iz], // body A
                                     floorBody, // body B
                                     ChFrame<>(ChVector<>( size_tile_x*0.5 + offset_x, tile_gap_y,  size_tile_z*0.5 + offset_z)), //initial frame of bushing in abs space
-                                    ChVector<>(hor_stiffness, vert_stiffness, hor_stiffness),    // K stiffness in local frame  [N/m]
-                                    ChVector<>(hor_damping, vert_damping, hor_damping),        // R damping in local frame  [N/m/s]
-                                    ChVector<>(hor_yeld, vert_yeld, hor_yeld)     // plastic yeld [N/m]
+                                    ChVector<>(stiffness_yx, stiffness_yy, stiffness_yz),    // K stiffness in local frame  [N/m]
+                                    ChVector<>(damping_yx, damping_yy, damping_yz),        // R damping in local frame  [N/m/s]
+                                    ChVector<>(yeld_yx, yeld_yy, yeld_yz)     // plastic yeld [N]
                                     );  
             my_loadcontainer->Add(bushing3);
 
@@ -284,9 +488,9 @@ int main(int argc, char* argv[]) {
                                     piastrelle[ix][iz], // body A
                                     floorBody, // body B
                                     ChFrame<>(ChVector<>(-size_tile_x*0.5 + offset_x, tile_gap_y,  size_tile_z*0.5 + offset_z)), //initial frame of bushing in abs space
-                                    ChVector<>(hor_stiffness, vert_stiffness, hor_stiffness),    // K stiffness in local frame  [N/m]
-                                    ChVector<>(hor_damping, vert_damping, hor_damping),        // R damping in local frame  [N/m/s]
-                                    ChVector<>(hor_yeld, vert_yeld, hor_yeld)     // plastic yeld [N/m]
+                                    ChVector<>(stiffness_yx, stiffness_yy, stiffness_yz),    // K stiffness in local frame  [N/m]
+                                    ChVector<>(damping_yx, damping_yy, damping_yz),        // R damping in local frame  [N/m/s]
+                                    ChVector<>(yeld_yx, yeld_yy, yeld_yz)     // plastic yeld [N]
                                     );  
             my_loadcontainer->Add(bushing4);
 
@@ -303,20 +507,20 @@ int main(int argc, char* argv[]) {
                 auto bushing_1h = std::make_shared<ChLoadBodyBodyBushingPlastic>(
                                     piastrelle[ix][iz], // body A
                                     piastrella_prec_x,  // body B
-                                    ChFrame<>(ChVector<>(offset_x-size_tile_x*0.5, tile_gap_y+size_tile_x*0.5, offset_z+size_tile_z*0.5)), //initial frame of bushing in abs space
-                                    ChVector<>(ortho_stiffness_giunto, shear_stiffness_giunto, shear_stiffness_giunto),    // K stiffness in local frame  [N/m]
-                                    ChVector<>(ortho_damping_giunto, shear_damping_giunto, shear_damping_giunto),        // R damping in local frame  [N/m/s]
-                                    ChVector<>(ortho_yeld_giunto, shear_yeld_giunto, shear_yeld_giunto)     // plastic yeld [N/m]
+									ChFrame<>(ChVector<>(offset_x - size_tile_x*0.5, tile_gap_y, offset_z + size_tile_z*0.5)), //initial frame of bushing in abs space
+									ChVector<>(stiffness_xx_giunto, stiffness_xy_giunto, stiffness_xz_giunto),    // K stiffness in local frame  [N/m]
+                                    ChVector<>(damping_xx_giunto, damping_xy_giunto, damping_xz_giunto),        // R damping in local frame  [N/m/s]
+                                    ChVector<>(yeld_xx_giunto, yeld_xy_giunto, yeld_xz_giunto)     // plastic yeld [N]
                                     );  
                 my_loadcontainer->Add(bushing_1h);
 
                 auto bushing_2h = std::make_shared<ChLoadBodyBodyBushingPlastic>(
                                     piastrelle[ix][iz], // body A
                                     piastrella_prec_x,  // body B
-                                    ChFrame<>(ChVector<>(offset_x-size_tile_x*0.5, tile_gap_y, offset_z-size_tile_z*0.5)), //initial frame of bushing in abs space
-                                    ChVector<>(ortho_stiffness_giunto, shear_stiffness_giunto, shear_stiffness_giunto),    // K stiffness in local frame  [N/m]
-                                    ChVector<>(ortho_damping_giunto, shear_damping_giunto, shear_damping_giunto),        // R damping in local frame  [N/m/s]
-                                    ChVector<>(ortho_yeld_giunto, shear_yeld_giunto, shear_yeld_giunto)     // plastic yeld [N/m]
+									ChFrame<>(ChVector<>(offset_x - size_tile_x*0.5, tile_gap_y, offset_z - size_tile_z*0.5)), //initial frame of bushing in abs space
+									ChVector<>(stiffness_xx_giunto, stiffness_xy_giunto, stiffness_xz_giunto),    // K stiffness in local frame  [N/m]
+                                    ChVector<>(damping_xx_giunto, damping_xy_giunto, damping_xz_giunto),        // R damping in local frame  [N/m/s]
+                                    ChVector<>(yeld_xx_giunto, yeld_xy_giunto, yeld_xz_giunto)     // plastic yeld [N]
                                     );  
                 my_loadcontainer->Add(bushing_2h);
             }
@@ -328,20 +532,20 @@ int main(int argc, char* argv[]) {
                 auto bushing_1h = std::make_shared<ChLoadBodyBodyBushingPlastic>(
                                     piastrelle[ix][iz], // body A
                                     piastrella_prec_z,  // body B
-                                    ChFrame<>(ChVector<>(offset_x-size_tile_x*0.5, tile_gap_y, offset_z-size_tile_z*0.5)), //initial frame of bushing in abs space
-                                    ChVector<>(shear_stiffness_giunto, shear_stiffness_giunto, ortho_stiffness_giunto),    // K stiffness in local frame  [N/m]
-                                    ChVector<>(shear_damping_giunto, shear_damping_giunto, ortho_damping_giunto),        // R damping in local frame  [N/m/s]
-                                    ChVector<>(shear_yeld_giunto, shear_yeld_giunto, ortho_yeld_giunto)     // plastic yeld [N/m]
+									ChFrame<>(ChVector<>(offset_x - size_tile_x*0.5, tile_gap_y, offset_z - size_tile_z*0.5)), //initial frame of bushing in abs space
+									ChVector<>(stiffness_zx_giunto, stiffness_zy_giunto, stiffness_zz_giunto),    // K stiffness in local frame  [N/m]
+                                    ChVector<>(damping_zx_giunto, damping_zy_giunto, damping_zz_giunto),        // R damping in local frame  [N/m/s]
+                                    ChVector<>(yeld_zx_giunto, yeld_zy_giunto, yeld_zz_giunto)     // plastic yeld [N]
                                     );  
                 my_loadcontainer->Add(bushing_1h);
 
                 auto bushing_2h = std::make_shared<ChLoadBodyBodyBushingPlastic>(
                                     piastrelle[ix][iz], // body A
                                     piastrella_prec_z,  // body B
-                                    ChFrame<>(ChVector<>(offset_x+size_tile_x*0.5, tile_gap_y, offset_z-size_tile_z*0.5)), //initial frame of bushing in abs space
-                                    ChVector<>(shear_stiffness_giunto, shear_stiffness_giunto, ortho_stiffness_giunto),    // K stiffness in local frame  [N/m]
-                                    ChVector<>(shear_damping_giunto, shear_damping_giunto, ortho_damping_giunto),        // R damping in local frame  [N/m/s]
-                                    ChVector<>(shear_yeld_giunto, shear_yeld_giunto, ortho_yeld_giunto)     // plastic yeld [N/m]
+									ChFrame<>(ChVector<>(offset_x + size_tile_x*0.5, tile_gap_y, offset_z - size_tile_z*0.5)), //initial frame of bushing in abs space
+									ChVector<>(stiffness_zx_giunto, stiffness_zy_giunto, stiffness_zz_giunto),    // K stiffness in local frame  [N/m]
+                                    ChVector<>(damping_zx_giunto, damping_zy_giunto, damping_zz_giunto),        // R damping in local frame  [N/m/s]
+                                    ChVector<>(yeld_zx_giunto, yeld_zy_giunto, yeld_zz_giunto)     // plastic yeld [N]
                                     );  
                 my_loadcontainer->Add(bushing_2h); 
 
@@ -350,18 +554,32 @@ int main(int argc, char* argv[]) {
     }
 
     // 6- Create a rigid wheel 
-
-    auto wheelBody = std::make_shared<ChBodyEasyCylinder>(0.4, 0.285,  // R, h
-                                                        200,         // density
+	
+    auto wheelBody1 = std::make_shared<ChBodyEasyCylinder>(0.4, 0.285,  // R, h
+                                                        600,         // density
                                                         true,        //  contact geometry
                                                         true          // enable visualization geometry
                                                         );
-    wheelBody->SetPos(ChVector<>(0, 0.60, 0));
-    wheelBody->SetRot(Q_from_AngX(CH_C_PI_2)); // 90 deg
+    wheelBody1->SetPos(ChVector<>(0, 0.60, 0));
+    wheelBody1->SetRot(Q_from_AngX(CH_C_PI_2)); // 90 deg
+	wheelBody1->SetPos_dt(ChVector<>(3, 0, 0));
 
-    mphysicalSystem.Add(wheelBody);
+	mphysicalSystem.Add(wheelBody1);
+
+	auto wheelBody2 = std::make_shared<ChBodyEasyCylinder>(0.1, 0.285,  // R, h
+		800,         // density
+		true,        //  contact geometry
+		true          // enable visualization geometry
+		);
+	wheelBody2->SetPos(ChVector<>(2.55, 0.50, 0.1));
+	wheelBody2->SetRot(Q_from_AngX(CH_C_PI_2)); // 90 deg
+	wheelBody2->SetPos_dt(ChVector<>(-1, 0, 0));
 
 
+    mphysicalSystem.Add(wheelBody2);
+	
+
+	/*
     // 7- apparecchiatura stretcher bond
     
     if (false) {
@@ -476,6 +694,7 @@ int main(int argc, char* argv[]) {
 				    mphysicalSystem.Add(springHy);
 				    */
 
+/*
 				    // 10- Create the inter-block springs (dir x):
 
 				    if (ix > 0) {
@@ -541,7 +760,7 @@ int main(int argc, char* argv[]) {
 				    mphysicalSystem.Add(spring4);
 
 				    // 12- Create the horizontal springs: soil-piastrella
-				
+				*/
 			        /*
 				    Quando le inserisco il sistema si muove :(
 
@@ -562,6 +781,7 @@ int main(int argc, char* argv[]) {
 				    mphysicalSystem.Add(springHy);
 				    */
 
+/*
 				    // 13- Create the inter-block springs (dir x):
 
 				    if (ix>0) {
@@ -667,6 +887,7 @@ int main(int argc, char* argv[]) {
 		    }
 	    }
 	
+	*/
 	    /*
 	    //Se inserisco la ruota, per quanto leggera, mi fa esplodere il sistema (immagino per mancanza di contrasto laterale delle piastrelle )
 	    // 16- Create a rigid wheel 
@@ -682,7 +903,7 @@ int main(int argc, char* argv[]) {
 	    mphysicalSystem.Add(sb_wheelBody);
 	    */
 
-
+/*
     } // end apparecchiatura stretcher bond
 	
 
@@ -847,8 +1068,10 @@ int main(int argc, char* argv[]) {
 	    mphysicalSystem.Add(hb_wheelBody);
      
     } // end apparecchiatura spinapesce 
-	
 
+	
+	
+	*/
     // Optionally, attach a RGB color asset to the floor, for better visualization
     auto color = std::make_shared<ChColorAsset>();
     color->SetColor(ChColor(0.2f, 0.25f, 0.25f));
