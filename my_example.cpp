@@ -35,6 +35,102 @@ using namespace irr::gui;
 
 
 
+
+class ChLoadBodyBodyBushingPlasticBreak : public ChLoadBodyBodyBushingSpherical {
+protected:
+    ChVector<> yeld;
+    ChVector<> plastic_def;
+    ChVector<> def_limit_break;
+    bool broken;
+   
+public:
+    ChLoadBodyBodyBushingPlasticBreak(
+                          std::shared_ptr<ChBody> mbodyA,   ///< object A
+                          std::shared_ptr<ChBody> mbodyB,   ///< object B
+                          const ChFrame<> abs_application,  ///< create the bushing here, in abs. coordinates. Initial alignment as world xyz.
+                          const ChVector<> mstiffness,      ///< stiffness, along x y z axes of the abs_application
+                          const ChVector<> mdamping,        ///< damping, along x y z axes of the abs_application
+                          const ChVector<> myeld,           ///< plastic yeld, along x y z axes of the abs_application
+                          const ChVector<> mdef_limit       ///< deformation limit, along x y z axes: if surpassed -> go into broken  state
+                        ) 
+         : ChLoadBodyBodyBushingSpherical(mbodyA,mbodyB,abs_application, mstiffness, mdamping), 
+           yeld(myeld),
+           def_limit_break(mdef_limit),
+           broken (false),
+           plastic_def(VNULL) {         
+        }
+
+        /// Implement the computation of bushing force, in local 
+        /// coordinates of the loc_application_B.
+        /// Force is assumed applied to body B, and its opposite to A.
+    virtual void ComputeBushingForceTorque(const ChFrameMoving<>& rel_AB, 
+                                            ChVector<>& loc_force,
+                                            ChVector<>& loc_torque)  override {
+        if (fabs(rel_AB.GetPos().x()) >= def_limit_break.x() ||
+            fabs(rel_AB.GetPos().y()) >= def_limit_break.y() ||
+            fabs(rel_AB.GetPos().z()) >= def_limit_break.z() ) {
+
+            broken = true;
+        }
+
+        if (broken) {
+            loc_force = VNULL;
+            loc_torque = VNULL;
+            return;
+        }
+
+        loc_force  = (rel_AB.GetPos()-plastic_def)  * this->stiffness  // element-wise product!
+                   + rel_AB.GetPos_dt() * this->damping;   // element-wise product!
+
+        // A basic plasticity, assumed with box capping, without hardening:
+        
+        if (loc_force.x() > yeld.x()) {
+            loc_force.x() = yeld.x();
+            plastic_def.x() = rel_AB.GetPos().x() - loc_force.x() / this->stiffness.x();
+        }
+        if (loc_force.x() < -yeld.x()) {
+            loc_force.x() = -yeld.x();
+            plastic_def.x() = rel_AB.GetPos().x() - loc_force.x() / this->stiffness.x();
+        }
+        if (loc_force.y() > yeld.y()) {
+            loc_force.y() = yeld.y();
+            plastic_def.y() = rel_AB.GetPos().y() - loc_force.y() / this->stiffness.y();
+        }
+        if (loc_force.y() < -yeld.y()) {
+            loc_force.y() = -yeld.y();
+            plastic_def.y() = rel_AB.GetPos().y() - loc_force.y() / this->stiffness.y();
+        }
+        if (loc_force.z() > yeld.z()) {
+            loc_force.z() = yeld.z();
+            plastic_def.z() = rel_AB.GetPos().z() - loc_force.z() / this->stiffness.z();
+        }
+        if (loc_force.z() < -yeld.z()) {
+            loc_force.z() = -yeld.z();
+            plastic_def.z() = rel_AB.GetPos().z() - loc_force.z() / this->stiffness.z();
+        }
+        
+        // GetLog() << "loc_force" << loc_force << "\n";
+        // GetLog() << "plastic_def" << plastic_def << "\n";
+        loc_torque = VNULL;
+    }
+
+    virtual bool IsStiff() {return true;}
+
+
+        /// Set plastic yeld, forces beyond this limit will be capped. 
+        /// Expressed along the x y z axes of loc_application_B, es [N/m].
+    void SetYeld(const ChVector<> myeld) {this->yeld = myeld;}
+    ChVector<> GetYeld() const {return this->yeld;}
+
+        /// Get the current accumulated plastic deformation, in [m], that
+        /// could become nonzero if forces went beyond the plastic yeld.
+    ChVector<> GetPlasticDeformation() const {return this->plastic_def;}
+
+};
+
+
+
+
 // This is the contact reporter class, just for writing contacts on 
 // a file on disk
 class _contact_reporter_class : public  chrono::ChReportContactCallback 
@@ -149,11 +245,13 @@ int main(int argc, char* argv[]) {
 		mpoints.push_back(ChVector<>(x, y, z));
 	}
 
+GetLog() << "test 1 \n";
+
 	// arco sinistra blocchi sottosquadra
 
 	std::shared_ptr<ChBodyEasyConvexHull> blocco_sottosquadra_s[7];
 
-	for (int ix = 1; ix < 8; ++ix) {
+	for (int ix = 0; ix < 7; ++ix) {
 
 		blocco_sottosquadra_s[ix] = std::make_shared<ChBodyEasyConvexHull>(mpoints, 1500, true, true);
 
@@ -172,7 +270,7 @@ int main(int argc, char* argv[]) {
 
 	std::shared_ptr<ChBodyEasyConvexHull> blocco_sottosquadra_d[1];
 
-	for (int ix = 2; ix < 3; ++ix) {
+	for (int ix = 0; ix < 1; ++ix) {
 
 		blocco_sottosquadra_d[ix] = std::make_shared<ChBodyEasyConvexHull>(mpoints, 1500, true, true);
 
@@ -184,7 +282,7 @@ int main(int argc, char* argv[]) {
 
 		mphysicalSystem.Add(blocco_sottosquadra_d[ix]);
 	}
-	
+GetLog() << "test 2 \n";	
     // archi contrastanti con blocchi sottosquadra (fine)
 
 	// archi contrastanti con blocchi normali (inizio)
@@ -192,7 +290,7 @@ int main(int argc, char* argv[]) {
 
 	std::shared_ptr<ChBodyEasyBox> blocchetto_s[6];
 
-	for (int ix = 1; ix < 7; ++ix) {
+	for (int ix = 0; ix < 6; ++ix) {
 
 		blocchetto_s[ix] = std::make_shared<ChBodyEasyBox>(lato_blocco, lato_blocco, lato_blocco,
 															1500,      // density
@@ -231,7 +329,7 @@ int main(int argc, char* argv[]) {
 
 	std::shared_ptr<ChBodyEasyBox> blocchetto_s_r[7];
 
-	for (int ix = 1; ix < 8; ++ix) {
+	for (int ix = 0; ix < 6; ++ix) {
 
 		blocchetto_s_r[ix] = std::make_shared<ChBodyEasyBox>(lato_blocco, lato_blocco, lato_blocco,
 															1500,      // density
@@ -252,7 +350,7 @@ int main(int argc, char* argv[]) {
 
 	 std::shared_ptr<ChBodyEasyBox> blocchetto_d[5];
 
-		for (int ix = 2; ix < 7; ++ix) {
+		for (int ix = 0; ix < 4; ++ix) {
 
 			blocchetto_d[ix] = std::make_shared<ChBodyEasyBox>(lato_blocco, lato_blocco, lato_blocco,
 												1500,      // density
@@ -273,7 +371,7 @@ int main(int argc, char* argv[]) {
 
 	std::shared_ptr<ChBodyEasyBox> blocchetto_d_r[7];
 
-	for (int ix = 1; ix < 8; ++ix) {
+	for (int ix = 0; ix < 7; ++ix) {
 
 		blocchetto_d_r[ix] = std::make_shared<ChBodyEasyBox>(lato_blocco, lato_blocco, lato_blocco,
 																1500,      // density
@@ -294,7 +392,7 @@ int main(int argc, char* argv[]) {
 	
 // archi contrastanti con blocchi normali (fine)
 
-	
+GetLog() << "test 3 \n";
     // contains all 'loads' (ie. bushings)
     auto my_loadcontainer = std::make_shared<ChLoadContainer>();
     mphysicalSystem.Add(my_loadcontainer);
@@ -454,13 +552,14 @@ int main(int argc, char* argv[]) {
             mphysicalSystem.Add(mollaHy);
             */
             
-            auto bushing1 = std::make_shared<ChLoadBodyBodyBushingPlastic>(
+            auto bushing1 = std::make_shared<ChLoadBodyBodyBushingPlasticBreak>(
                                     piastrelle[ix][iz], // body A
                                     floorBody, // body B
                                     ChFrame<>(ChVector<>(-size_tile_x*0.5 + offset_x, tile_gap_y, -size_tile_z*0.5 + offset_z)), //initial frame of bushing in abs space
                                     ChVector<>(stiffness_yx, stiffness_yy, stiffness_yz),    // K stiffness in local frame  [N/m]
                                     ChVector<>(damping_yx, damping_yy, damping_yz),        // R damping in local frame  [N/m/s]
-                                    ChVector<>(yeld_yx, yeld_yy, yeld_yz)     // plastic yeld [N]
+                                    ChVector<>(yeld_yx, yeld_yy, yeld_yz),     // plastic yeld [N]
+                                    ChVector<>(0.01, 0.01, 0.01)  // max displ before breaking
                                     );  
             my_loadcontainer->Add(bushing1);
 
