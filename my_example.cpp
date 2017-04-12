@@ -245,7 +245,6 @@ int main(int argc, char* argv[]) {
 		mpoints.push_back(ChVector<>(x, y, z));
 	}
 
-GetLog() << "test 1 \n";
 
 	// arco sinistra blocchi sottosquadra
 
@@ -282,7 +281,7 @@ GetLog() << "test 1 \n";
 
 		mphysicalSystem.Add(blocco_sottosquadra_d[ix]);
 	}
-GetLog() << "test 2 \n";	
+	
     // archi contrastanti con blocchi sottosquadra (fine)
 
 	// archi contrastanti con blocchi normali (inizio)
@@ -392,7 +391,6 @@ GetLog() << "test 2 \n";
 	
 // archi contrastanti con blocchi normali (fine)
 
-GetLog() << "test 3 \n";
     // contains all 'loads' (ie. bushings)
     auto my_loadcontainer = std::make_shared<ChLoadContainer>();
     mphysicalSystem.Add(my_loadcontainer);
